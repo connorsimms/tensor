@@ -1,7 +1,7 @@
 #include "tensor.h"
+#include <pybind11/operators.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
-#include <pybind11/operators.h>
 
 namespace py = pybind11;
 
@@ -13,11 +13,12 @@ PYBIND11_MODULE(tensor, m)
       .def(py::init<std::vector<std::uint32_t>>())
       .def("getData", &Tensor<float>::getData)
       .def("getShape", &Tensor<float>::getShape)
-      .def("getStride", &Tensor<float>::getStride, py::return_value_policy::reference)
+      .def("getStride", &Tensor<float>::getStride,
+           py::return_value_policy::reference)
 
-        .def("clone", &Tensor<float>::clone)
+      .def("clone", &Tensor<float>::clone)
 
-        .def(py::self + py::self)
+      .def(py::self + py::self)
 
       .def("__getitem__",
            [](Tensor<float> &self, const std::vector<std::uint32_t> &indices)
