@@ -11,12 +11,18 @@ PYBIND11_MODULE(tensor, m)
 
   py::class_<Tensor<float>>(m, "FloatTensor")
       .def(py::init<std::vector<std::uint32_t>>())
-      .def("getData", &Tensor<float>::getData)
-      .def("getShape", &Tensor<float>::getShape)
+
+      .def("getData", &Tensor<float>::getData, 
+           py::return_value_policy::reference)
+
+      .def("getShape", &Tensor<float>::getShape, 
+           py::return_value_policy::reference)
+
       .def("getStride", &Tensor<float>::getStride,
            py::return_value_policy::reference)
 
-      .def("clone", &Tensor<float>::clone)
+      .def("clone", &Tensor<float>::clone, 
+           py::return_value_policy::reference)
 
       .def(py::self + py::self)
 
