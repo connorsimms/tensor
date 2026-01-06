@@ -61,9 +61,27 @@ public:
     return data_[pos];
   }
 
-  template <class... Args> T &operator[](Args... args)
+  template <class... Args> T &operator()(Args... args)
   {
-    return at({static_cast<std::uint32_t>(args)...});
+    if (sizeof...(args) != shape_.size())
+    {
+      throw std::invalid_argument(
+          "Number of arguments does not match dimension");
+    }
+
+    std::array<std::uint32_t, sizeof...(args)> indices = {
+        static_cast<std::uint32_t>(args)...};
+
+    if (!std::equal(indices.begin(), indices.end(), shape_.begin(),
+                    [](auto idx, auto bound) { return idx < bound; }))
+    {
+      throw std::invalid_argument("Index arguments are out of bounds");
+    }
+
+    std::size_t pos =
+        std::inner_product(stride_.begin(), stride_.end(), indices.begin(), 0u);
+
+    return data_[pos];
   }
 
   Tensor clone() const { return Tensor(this); }
