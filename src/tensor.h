@@ -27,6 +27,18 @@ public:
                    });
   }
 
+    Tensor(Tensor const& other) 
+    : data_{ other.data_ }
+    , shape_{ other.shape_ }
+    , stride_{ other.stride_ }
+    {}
+
+    Tensor(Tensor const* other) 
+    : data_{ other->data_ }
+    , shape_{ other->shape_ }
+    , stride_{ other->stride_ }
+    {}
+
   const std::vector<T> &getData() const { return data_; }
   const std::vector<std::uint32_t> &getShape() const { return shape_; }
   const std::vector<std::uint32_t> &getStride() const { return stride_; }
@@ -56,6 +68,27 @@ public:
   {
     return at({static_cast<std::uint32_t>(args)...});
   }
+
+    Tensor clone() const
+    {
+        return Tensor(this);
+    }
+
+    Tensor operator+(Tensor const& other) const
+    {
+        if (shape_ != other.shape_)
+        {
+            throw std::invalid_argument("Tensors are of different shape");
+        }
+
+        Tensor result = Tensor(shape_);
+
+        std::transform(data_.begin(), data_.end(), other.data_.begin(), result.data_.begin(),
+                       [](T const& a, T const& b) { return a + b; }
+        );
+
+        return result;
+    }
 
 private:
   std::vector<T> data_;
