@@ -21,9 +21,9 @@ PYBIND11_MODULE(tensor, m)
       .def("getStride", &Tensor<float>::getStride,
            py::return_value_policy::reference)
 
-      .def("clone", &Tensor<float>::clone, py::return_value_policy::reference)
+      .def("fill", &Tensor<float>::fill)
 
-      .def(py::self + py::self)
+      .def("clone", &Tensor<float>::clone)
 
       .def("__getitem__",
            [](Tensor<float> &self, const std::vector<std::uint32_t> &indices)
@@ -31,5 +31,14 @@ PYBIND11_MODULE(tensor, m)
 
       .def("__setitem__",
            [](Tensor<float> &self, const std::vector<std::uint32_t> &indices,
-              float v) { self.at(indices) = v; });
+              float v) { self.at(indices) = v; })
+
+      .def(py::self + py::self)
+
+      .def("__matmul__", &Tensor<float>::matmul)
+
+      .def("transpose_", py::overload_cast<std::size_t, std::size_t>(&Tensor<float>::transpose_))
+
+      .def_static("transpose", py::overload_cast<const Tensor<float>&, std::size_t, std::size_t>(&Tensor<float>::transpose));
+        
 }

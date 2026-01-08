@@ -1,4 +1,5 @@
-build/
+build/*
+!build/autograd.py
 CMakeCache.txt
 CMakeFiles/
 Makefile

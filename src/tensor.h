@@ -40,6 +40,10 @@ public:
   const std::vector<T> &getData() const { return data_; }
   const std::vector<std::uint32_t> &getShape() const { return shape_; }
   const std::vector<std::uint32_t> &getStride() const { return stride_; }
+    
+  void fill(T val) { std::fill(data_.begin(), data_.end(), val); }
+
+  Tensor clone() const { return Tensor(this); }
 
   T &at(const std::vector<std::uint32_t> &indices)
   {
@@ -84,7 +88,6 @@ public:
     return data_[pos];
   }
 
-  Tensor clone() const { return Tensor(this); }
 
   Tensor operator+(Tensor const &other) const
   {
@@ -101,6 +104,59 @@ public:
 
     return result;
   }
+
+  Tensor matmul(Tensor const &other) const
+  {
+    if (shape_.size() != 2 || other.shape_.size() != 2)
+    {
+      throw std::invalid_argument("MatMul not defined for non-2D tensors");
+    }
+
+    std::uint32_t M = shape_[0];
+    std::uint32_t K = shape_[1];
+
+    if (other.shape_[0] != K)
+    {
+      throw std::invalid_argument(
+          "Dimensions incompatible: inner dimensions must match");
+    }
+
+    std::uint32_t N = other.shape_[1];
+
+    Tensor result({M, N});
+
+    for (std::size_t i{}; i < M; ++i)
+    {
+      for (std::size_t j{}; j < N; ++j)
+      {
+        auto idx = i * result.stride_[0] + j * result.stride_[1];
+        for (std::size_t k{}; k < K; ++k)
+        {
+          auto a = this->data_[i * this->stride_[0] + k * this->stride_[1]];
+          auto b = other.data_[k * other.stride_[0] + j * other.stride_[1]];
+          result.data_[idx] += a * b;
+        }
+      }
+    }
+
+    return result;
+  }
+
+    void transpose_(std::size_t dimA, std::size_t dimB)
+    {
+        std::swap(shape_[dimA], shape_[dimB]);
+
+        std::swap(stride_[dimA], stride_[dimB]);
+    }
+
+    static Tensor transpose(Tensor const& other, std::size_t dimA, std::size_t dimB) 
+    {
+        Tensor result = Tensor(other);
+
+        result.transpose_(dimA, dimB);
+
+        return result;
+    }
 
 private:
   std::vector<T> data_;
