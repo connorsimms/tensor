@@ -35,10 +35,21 @@ PYBIND11_MODULE(tensor, m)
 
       .def(py::self + py::self)
 
+      .def(py::self * py::self)
+
       .def("__matmul__", &Tensor<float>::matmul)
 
-      .def("transpose_", py::overload_cast<std::size_t, std::size_t>(&Tensor<float>::transpose_))
+      .def("transpose_", py::overload_cast<std::size_t, std::size_t>(
+                             &Tensor<float>::transpose_))
 
-      .def_static("transpose", py::overload_cast<const Tensor<float>&, std::size_t, std::size_t>(&Tensor<float>::transpose));
-        
+      .def_static(
+          "transpose",
+          py::overload_cast<const Tensor<float> &, std::size_t, std::size_t>(
+              &Tensor<float>::transpose))
+
+      .def_static("relu", &Tensor<float>::relu)
+
+      .def_static("relu_backward", &Tensor<float>::relu)
+
+      ;
 }

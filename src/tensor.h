@@ -40,7 +40,7 @@ public:
   const std::vector<T> &getData() const { return data_; }
   const std::vector<std::uint32_t> &getShape() const { return shape_; }
   const std::vector<std::uint32_t> &getStride() const { return stride_; }
-    
+
   void fill(T val) { std::fill(data_.begin(), data_.end(), val); }
 
   Tensor clone() const { return Tensor(this); }
@@ -88,7 +88,6 @@ public:
     return data_[pos];
   }
 
-
   Tensor operator+(Tensor const &other) const
   {
     if (shape_ != other.shape_)
@@ -101,6 +100,22 @@ public:
     std::transform(data_.begin(), data_.end(), other.data_.begin(),
                    result.data_.begin(),
                    [](T const &a, T const &b) { return a + b; });
+
+    return result;
+  }
+
+  Tensor operator*(Tensor const &other) const
+  {
+    if (shape_ != other.shape_)
+    {
+      throw std::invalid_argument("Tensors are of different shape");
+    }
+
+    Tensor result = Tensor(shape_);
+
+    std::transform(data_.begin(), data_.end(), other.data_.begin(),
+                   result.data_.begin(),
+                   [](T const &a, T const &b) { return a * b; });
 
     return result;
   }
@@ -142,21 +157,43 @@ public:
     return result;
   }
 
-    void transpose_(std::size_t dimA, std::size_t dimB)
-    {
-        std::swap(shape_[dimA], shape_[dimB]);
+  void transpose_(std::size_t dimA, std::size_t dimB)
+  {
+    std::swap(shape_[dimA], shape_[dimB]);
 
-        std::swap(stride_[dimA], stride_[dimB]);
-    }
+    std::swap(stride_[dimA], stride_[dimB]);
+  }
 
-    static Tensor transpose(Tensor const& other, std::size_t dimA, std::size_t dimB) 
-    {
-        Tensor result = Tensor(other);
+  static Tensor transpose(Tensor const &other, std::size_t dimA,
+                          std::size_t dimB)
+  {
+    Tensor result = Tensor(other);
 
-        result.transpose_(dimA, dimB);
+    result.transpose_(dimA, dimB);
 
-        return result;
-    }
+    return result;
+  }
+
+  static Tensor relu(Tensor const &other)
+  {
+    Tensor result = Tensor(other);
+
+    std::transform(result.data_.begin(), result.data_.end(),
+                   result.data_.begin(),
+                   [](T val) { return std::max(static_cast<T>(0), val); });
+    return result;
+  }
+
+  static Tensor relu_backward(const Tensor &input, const Tensor &grad_out)
+  {
+    Tensor result = Tensor(input.shape_);
+
+    std::transform(grad_out.data_.begin(), grad_out.data_.end(),
+                   input.data_.begin(), result.data_.begin(),
+                   [](const auto g, const auto i) { return (i > 0 ? g : 0); });
+
+    return result;
+  }
 
 private:
   std::vector<T> data_;
