@@ -104,6 +104,18 @@ public:
     return result;
   }
 
+    void operator+=(Tensor const& other)
+    {
+        if (shape_ != other.shape_)
+        {
+          throw std::invalid_argument("Tensors are of different shape");
+        }
+
+        std::transform(data_.begin(), data_.end(), other.data_.begin(),
+                       data_.begin(),
+                       [](T &a, T const &b) { return a + b; });
+    }
+
   Tensor operator*(Tensor const &other) const
   {
     if (shape_ != other.shape_)
@@ -113,7 +125,7 @@ public:
 
     Tensor result = Tensor(shape_);
 
-    std::transform(data_.begin(), data_.end(), other.data_.begin(),
+    std::transform(data_.cbegin(), data_.cend(), other.data_.begin(),
                    result.data_.begin(),
                    [](T const &a, T const &b) { return a * b; });
 
