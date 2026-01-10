@@ -19,5 +19,14 @@ target_link_libraries(tensor_test PRIVATE
   GTest::gtest_main
 )
 
+add_executable(
+    manual_test 
+    manual.cpp
+)
+
+target_link_libraries(manual_test PRIVATE
+    tensor_lib
+)
+
 include(GoogleTest)
 gtest_discover_tests(tensor_test)

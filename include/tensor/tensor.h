@@ -1,214 +1,140 @@
 #pragma once
 
-#include <algorithm>
-#include <array>
-#include <cstdint>
-#include <functional>
-#include <numeric>
-#include <stdexcept>
-#include <string>
-#include <utility>
-#include <vector>
+#include "tensor_impl.h"
 
-template <typename T> class Tensor
+template <typename T>
+class Tensor
 {
 public:
-  Tensor(const std::vector<std::uint32_t> &shape)
-      : data_(std::accumulate(shape.begin(), shape.end(), 1,
-                              std::multiplies<std::uint32_t>())),
-        shape_{shape}, stride_(shape.size())
-  {
-    std::transform(shape_.rbegin(), shape_.rend(), stride_.rbegin(),
-                   [&, n = 1](const std::uint32_t dim) mutable
-                   {
-                     auto next = n;
-                     n *= dim;
-                     return next;
-                   });
-  }
+    template <std::same_as<std::uint32_t>...  Args>
+    Tensor(Args... args) 
+    : impl_{ std::make_shared<TensorImpl<T>>(args...) } 
+    { }
 
-  Tensor(Tensor const &other)
-      : data_{other.data_}, shape_{other.shape_}, stride_{other.stride_}
-  {
-  }
+    Tensor(std::vector<std::uint32_t> const &shape) 
+    : impl_{ std::make_shared<TensorImpl<T>>(shape) } { }
 
-  Tensor(Tensor const *other)
-      : data_{other->data_}, shape_{other->shape_}, stride_{other->stride_}
-  {
-  }
+    Tensor(Tensor const &other) : impl_{ other.impl_ } { }
 
-  const std::vector<T> &getData() const { return data_; }
-  const std::vector<std::uint32_t> &getShape() const { return shape_; }
-  const std::vector<std::uint32_t> &getStride() const { return stride_; }
+    Tensor(TensorImpl<T> impl) 
+    : impl_{ std::make_shared<TensorImpl<T>>(impl) } { }
 
-  void fill(T val) { std::fill(data_.begin(), data_.end(), val); }
+    std::shared_ptr<TensorImpl<T>> impl() { return impl_; }
 
-  Tensor clone() const { return Tensor(this); }
-
-  T &at(const std::vector<std::uint32_t> &indices)
-  {
-    if (indices.size() != shape_.size())
-    {
-      throw std::invalid_argument(
-          "Number of arguments does not match dimension");
+    Tensor operator=(Tensor const &other) 
+    { 
+        impl_ = other.impl_; 
+        return *this;
     }
 
-    if (!std::equal(indices.begin(), indices.end(), shape_.begin(),
-                    [](auto idx, auto bound) { return idx < bound; }))
+    Tensor operator+(Tensor const &other) const
     {
-      throw std::invalid_argument("Index arguments are out of bounds");
-    }
+        Tensor result(*this->impl_ + *other.impl_);
 
-    std::size_t pos =
-        std::inner_product(stride_.begin(), stride_.end(), indices.begin(), 0u);
-
-    return data_[pos];
-  }
-
-  template <class... Args> T &operator()(Args... args)
-  {
-    if (sizeof...(args) != shape_.size())
-    {
-      throw std::invalid_argument(
-          "Number of arguments does not match dimension");
-    }
-
-    std::array<std::uint32_t, sizeof...(args)> indices = {
-        static_cast<std::uint32_t>(args)...};
-
-    if (!std::equal(indices.begin(), indices.end(), shape_.begin(),
-                    [](auto idx, auto bound) { return idx < bound; }))
-    {
-      throw std::invalid_argument("Index arguments are out of bounds");
-    }
-
-    std::size_t pos =
-        std::inner_product(stride_.begin(), stride_.end(), indices.begin(), 0u);
-
-    return data_[pos];
-  }
-
-  Tensor operator+(Tensor const &other) const
-  {
-    if (shape_ != other.shape_)
-    {
-      throw std::invalid_argument("Tensors are of different shape");
-    }
-
-    Tensor result = Tensor(shape_);
-
-    std::transform(data_.begin(), data_.end(), other.data_.begin(),
-                   result.data_.begin(),
-                   [](T const &a, T const &b) { return a + b; });
-
-    return result;
-  }
-
-    void operator+=(Tensor const& other)
-    {
-        if (shape_ != other.shape_)
+        if (this->impl_->requires_grad_ || other.impl_->requires_grad_)
         {
-          throw std::invalid_argument("Tensors are of different shape");
+            result.impl_->requires_grad_ = true;
+            result.impl_->parents_ = {this->impl_, other.impl_};
+
+            result.impl_->backward_ = [result, *this, other]() 
+            {
+                if (!result.impl_->grad_) return;
+
+
+                if (this->impl_->requires_grad_)
+                {
+                    if (this->impl_->grad_) 
+                    { 
+                        *(this->impl_->grad_) += *(result.impl_->grad_); 
+                    }
+                    else
+                    {
+                        this->impl_->grad_ = std::make_shared<TensorImpl<T>>(*(result.impl_->grad_)); 
+                    }
+                }
+
+                if (other.impl_->requires_grad_)
+                {
+                    if (other.impl_->grad_)
+                    {
+                        *(other.impl_->grad_) += *(result.impl_->grad_); 
+                    }
+                    else
+                    {
+                        other.impl_->grad_ = std::make_shared<TensorImpl<T>>(*(result.impl_->grad_)); 
+                    }
+                }
+            };
         }
-
-        std::transform(data_.begin(), data_.end(), other.data_.begin(),
-                       data_.begin(),
-                       [](T &a, T const &b) { return a + b; });
+        return result;
     }
 
-  Tensor operator*(Tensor const &other) const
-  {
-    if (shape_ != other.shape_)
+    Tensor transpose(std::size_t dimA, std::size_t dimB)
     {
-      throw std::invalid_argument("Tensors are of different shape");
-    }
+        Tensor result(this->impl_->transpose(dimA, dimB)); 
 
-    Tensor result = Tensor(shape_);
-
-    std::transform(data_.cbegin(), data_.cend(), other.data_.begin(),
-                   result.data_.begin(),
-                   [](T const &a, T const &b) { return a * b; });
-
-    return result;
-  }
-
-  Tensor matmul(Tensor const &other) const
-  {
-    if (shape_.size() != 2 || other.shape_.size() != 2)
-    {
-      throw std::invalid_argument("MatMul not defined for non-2D tensors");
-    }
-
-    std::uint32_t M = shape_[0];
-    std::uint32_t K = shape_[1];
-
-    if (other.shape_[0] != K)
-    {
-      throw std::invalid_argument(
-          "Dimensions incompatible: inner dimensions must match");
-    }
-
-    std::uint32_t N = other.shape_[1];
-
-    Tensor result({M, N});
-
-    for (std::size_t i{}; i < M; ++i)
-    {
-      for (std::size_t j{}; j < N; ++j)
-      {
-        auto idx = i * result.stride_[0] + j * result.stride_[1];
-        for (std::size_t k{}; k < K; ++k)
+        if (this->impl_->requires_grad_)
         {
-          auto a = this->data_[i * this->stride_[0] + k * this->stride_[1]];
-          auto b = other.data_[k * other.stride_[0] + j * other.stride_[1]];
-          result.data_[idx] += a * b;
+            result.impl_->requires_grad_ = true;
+            result.impl_->parents_ = {this->impl_};
+
+            result.impl_->backward_ = [result, *this, dimA, dimB]() 
+            {
+                if (this->impl_->grad_)
+                {
+                    *(this->impl_->grad_) += result.impl_->grad_->transpose(dimA,dimB);
+                }
+                else
+                {
+                    this->impl_->grad_ = std::make_shared<TensorImpl<T>>(result.impl_->grad_->transpose(dimA,dimB));
+                }
+            };
         }
-      }
+        return result;
     }
 
-    return result;
-  }
+    Tensor matmul(Tensor const &other) const
+    {
+        Tensor result(this->impl_->matmul(*other.impl_)); 
 
-  void transpose_(std::size_t dimA, std::size_t dimB)
-  {
-    std::swap(shape_[dimA], shape_[dimB]);
+        if (this->impl_->requires_grad_ || other.impl_->requires_grad_)
+        {
+            result.impl_->requires_grad_ = true;
+            result.impl_->parents_ = {this->impl_, other.impl_};
 
-    std::swap(stride_[dimA], stride_[dimB]);
-  }
+            result.impl_->backward_ = [result, *this, other]() 
+            {
+                if (!result.impl_->grad_) return;
 
-  static Tensor transpose(Tensor const &other, std::size_t dimA,
-                          std::size_t dimB)
-  {
-    Tensor result = Tensor(other);
 
-    result.transpose_(dimA, dimB);
+                if (this->impl_->requires_grad_)
+                {
+                    if (this->impl_->grad_) 
+                    { 
+                        *(this->impl_->grad_) += result.impl_->grad_->matmul(other.impl_->transpose(0,1));
+                    }
+                    else
+                    {
+                        this->impl_->grad_ = std::make_shared<TensorImpl<T>>(result.impl_->grad_->matmul(other.impl_->transpose(0, 1)));
+                    }
+                }
 
-    return result;
-  }
-
-  static Tensor relu(Tensor const &other)
-  {
-    Tensor result = Tensor(other);
-
-    std::transform(result.data_.begin(), result.data_.end(),
-                   result.data_.begin(),
-                   [](T val) { return std::max(static_cast<T>(0), val); });
-    return result;
-  }
-
-  static Tensor relu_backward(const Tensor &input, const Tensor &grad_out)
-  {
-    Tensor result = Tensor(input.shape_);
-
-    std::transform(grad_out.data_.begin(), grad_out.data_.end(),
-                   input.data_.begin(), result.data_.begin(),
-                   [](const auto g, const auto i) { return (i > 0 ? g : 0); });
-
-    return result;
-  }
+                if (other.impl_->requires_grad_)
+                {
+                    if (other.impl_->grad_)
+                    {
+                        *(other.impl_->grad_) += this->impl_->transpose(0,1).matmul(*result.impl_->grad_);
+                    }
+                    else
+                    {
+                        other.impl_->grad_ = std::make_shared<TensorImpl<T>>(this->impl_->transpose(0,1).matmul(*result.impl_->grad_));
+                    }
+                }
+            };
+        }
+        return result;
+    }
 
 private:
-  std::vector<T> data_;
-  std::vector<std::uint32_t> shape_;
-  std::vector<std::uint32_t> stride_;
+    std::shared_ptr<TensorImpl<T>> impl_;
 };
