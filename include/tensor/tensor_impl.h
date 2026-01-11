@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <iostream>
+#include <iomanip>
 #include <functional>
 #include <memory>
 #include <numeric>
@@ -59,7 +60,7 @@ struct TensorImpl
     }
 
     // deep copy everything except data & grad
-    // may 
+    // may create view version
     TensorImpl(TensorImpl const &other)
     : shape_{ other.shape_ }
     , stride_{ other.stride_ }
@@ -71,7 +72,22 @@ struct TensorImpl
     {
     }
 
-    TensorImpl operator+(TensorImpl const& other)
+    void fill(T const& val)
+    {
+        std::fill(data_->begin(), data_->end(), val);
+    }
+
+    TensorImpl operator-() const
+    {
+        TensorImpl result = TensorImpl(this->shape_);
+
+        std::transform(this->data_->begin(), this->data_->end(),
+                       result.data_->begin(), [](T const& a) { return -a; });
+
+        return result;
+    }
+
+    TensorImpl operator+(TensorImpl const& other) const
     {
         if (this->shape_ != other.shape_)
         {
@@ -87,6 +103,32 @@ struct TensorImpl
         return result;
     }
 
+    TensorImpl operator-(TensorImpl const& other) const
+    {
+        if (this->shape_ != other.shape_)
+        {
+            throw std::invalid_argument("Tensors are of different shape");
+        }
+
+        TensorImpl result = TensorImpl(this->shape_);
+
+        std::transform(this->data_->begin(), this->data_->end(), 
+                       other.data_->begin(), result.data_->begin(),
+                       [](T const &a, T const &b) { return a - b; });
+
+        return result;
+    }
+
+    TensorImpl operator*(T const& val) const
+    {
+        TensorImpl result = TensorImpl(this->shape_);
+
+        std::transform(this->data_->begin(), this->data_->end(),
+                       result.data_->begin(), [val](T const& a) { return a * val; });
+
+        return result;
+    }
+
     void operator+=(TensorImpl const &other)
     {
         if (this->shape_ != other.shape_)
@@ -98,6 +140,45 @@ struct TensorImpl
                        this->data_->begin(), [](T const& a, T const& b)
                        { return a + b; });
     }
+    
+    void operator-=(TensorImpl const &other)
+    {
+        if (this->shape_ != other.shape_)
+        {
+            throw std::invalid_argument("TensorImpl are of different shape");
+        }
+
+        std::transform(this->data_->begin(), this->data_->end(), other.data_->begin(),
+                       this->data_->begin(), [](T const& a, T const& b)
+                       { return a - b; });
+    }
+
+    void operator*=(T const& val) const
+    {
+        std::transform(this->data_->begin(), this->data_->end(),
+                       this->data_->begin(), [val](T const& a) { return a * val; });
+    }
+
+    template <std::same_as<std::uint32_t>... Args> 
+    T& operator[](Args... args)
+    {
+        if (sizeof...(args) != shape_.size()) 
+        {
+            throw std::invalid_argument("Number of arguments mismatch dimension");
+        }
+
+        std::array<std::uint32_t, sizeof...(args)> indices = { args... };
+
+        if (!std::equal(indices.begin(), indices.end(), shape_.begin(),
+                       [](T const& idx, T const& bound) { return idx < bound; }))
+        {
+            throw std::invalid_argument("Indices are out of bounds");
+        }
+
+        auto pos = std::inner_product(indices.begin(), indices.end(), stride_.begin(), 0u);
+
+        return (*data_)[pos];
+    }
 
     TensorImpl transpose(std::uint32_t dimA, std::uint32_t dimB) const
     {
@@ -106,11 +187,9 @@ struct TensorImpl
             throw std::invalid_argument("Dimensions are out of bounds");
         }
 
-        TensorImpl result = *this; // copy construct
+        TensorImpl result = TensorImpl(this->shape_); 
 
-        result.grad_ = nullptr; // don't necessarily inherit
-        result.parents_.clear();
-        result.backward_ = nullptr;
+        std::copy(this->data_->begin(), this->data_->end(), result.data_->begin());
         
         std::swap(result.stride_[dimA], result.stride_[dimB]);
         std::swap(result.shape_[dimA], result.shape_[dimB]);
@@ -153,5 +232,32 @@ struct TensorImpl
         
         return result;
     }
+
+    template <typename U>
+    friend std::ostream& operator<<(std::ostream& out, TensorImpl<U> const& impl);
 };
 
+template <typename T>
+std::ostream& operator<<(std::ostream& out, TensorImpl<T> const &impl)
+{
+    out << "Shape: ";
+    for (auto s: impl.shape_) { std::cout << s << ", "; }
+    out << '\n';
+
+    out << "Stride: ";
+    for (auto s: impl.stride_) { std::cout << s << ", "; }
+    out << '\n';
+
+    out << "Data: ";
+    for (auto x: *impl.data_) { std::cout << x << ", "; }
+    out << '\n';
+
+    out << "Grad?: " << std::boolalpha << impl.requires_grad_ << '\n';
+
+    if (impl.requires_grad_)
+    {
+        if (impl.grad_) { out << "Grad:\n " << *impl.grad_; }
+    }
+
+    return out;
+}
