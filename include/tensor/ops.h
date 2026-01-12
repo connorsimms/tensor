@@ -16,7 +16,6 @@ Tensor<T> add(Tensor<T> const& lhs, Tensor<T> const &rhs)
         {
             if (!result.impl()->grad_) return;
 
-
             if (lhs.impl()->requires_grad_)
             {
                 if (lhs.impl()->grad_) 
@@ -58,7 +57,6 @@ Tensor<T> sub(Tensor<T> const &lhs, Tensor<T> const &rhs)
         result.impl()->backward_ = [result, lhs, rhs]() 
         {
             if (!result.impl()->grad_) return;
-
 
             if (lhs.impl()->requires_grad_)
             {
@@ -127,7 +125,6 @@ Tensor<T> matmul(Tensor<T> const &lhs, Tensor<T> const &rhs)
         {
             if (!result.impl()->grad_) return;
 
-
             if (lhs.impl()->requires_grad_)
             {
                 if (lhs.impl()->grad_) 
@@ -153,5 +150,37 @@ Tensor<T> matmul(Tensor<T> const &lhs, Tensor<T> const &rhs)
             }
         };
     }
+    return result;
+}
+
+template <typename T>
+Tensor<T> relu(Tensor<T> const& input)
+{
+    auto inp = input.impl();
+
+    Tensor<T> result(inp->relu());
+
+    if (inp->requires_grad_)
+    {
+        result.impl()->requires_grad_ = true;
+        result.impl()->parents_ = {inp};
+        result.impl()->backward_ = [=]()
+        {
+            if (!result.impl()->grad_) return;
+
+            if (!inp->grad_)
+            {
+                inp->grad_ = std::make_shared<TensorImpl<T>>(inp->shape_);
+            }
+
+            std::transform(inp->grad_->data_->begin(), inp->grad_->data_->end(), 
+                           inp->data_->begin(), result.impl()->grad_->data_->begin(), 
+                           [](T const& a, T const& b)
+                           {
+                                return (a > 0) ? b : 0;
+                           });
+        };
+    }
+
     return result;
 }

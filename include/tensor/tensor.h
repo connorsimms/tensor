@@ -53,7 +53,7 @@ public:
 
         for (auto it = topo.rbegin(); it != topo.rend(); ++it)
         {
-            if((*it)->backward_) (*it)->backward_(); 
+            if((*it)->backward_) { (*it)->backward_(); }
         }
     }
 

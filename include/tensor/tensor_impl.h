@@ -233,6 +233,16 @@ struct TensorImpl
         return result;
     }
 
+    TensorImpl relu() const
+    {
+        TensorImpl result(this->shape_);
+
+        std::transform(result.data_->begin(), result.data_->end(), result.data_->begin(),
+                       [](T const& d) { return std::max(static_cast<T>(0), d); });
+
+        return result;
+    }
+
     template <typename U>
     friend std::ostream& operator<<(std::ostream& out, TensorImpl<U> const& impl);
 };

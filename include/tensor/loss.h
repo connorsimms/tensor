@@ -9,7 +9,7 @@ struct MSELoss
         // (pred - targ) ^ 2 -> sum / num elements
         // grad i,j = 2 * (pred - targ) / num elem
 
-        Tensor<T> result(1); // this is technically 1d but currently no way to make 0d
+        Tensor<T> result(1u); // this is technically 1d but currently no way to make 0d
 
         auto pred = lhs.impl();
         auto targ = rhs.impl();
