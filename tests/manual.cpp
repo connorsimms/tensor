@@ -1,4 +1,5 @@
 #include "tensor/tensor.h"
+#include "tensor/ops.h"
 
 int main()
 {
@@ -24,8 +25,8 @@ int main()
 
     std::cout << B;
 
-    auto mm = X.matmul(W);
-    auto ma = mm + B;
+    auto mm = matmul(X, W);
+    auto ma = add(mm, B);
 
     std::cout << ma;
 
