@@ -3,84 +3,90 @@
 #include "tensor_impl.h"
 
 template <typename T> class Tensor;
-template <typename T> std::ostream& operator<<(std::ostream& out, Tensor<T> const &t);
-
 template <typename T>
-class Tensor
+std::ostream &operator<<(std::ostream &out, Tensor<T> const &t);
+
+template <typename T> class Tensor
 {
 public:
-    template <std::same_as<std::uint32_t>...  Args>
-    Tensor(Args... args) 
-    : impl_{ std::make_shared<TensorImpl<T>>(args...) } 
-    { }
+  template <std::same_as<std::uint32_t>... Args>
+  Tensor(Args... args) : impl_{std::make_shared<TensorImpl<T>>(args...)}
+  {
+  }
 
-    Tensor(std::vector<std::uint32_t> const &shape) 
-    : impl_{ std::make_shared<TensorImpl<T>>(shape) } { }
+  Tensor(std::vector<std::uint32_t> const &shape)
+      : impl_{std::make_shared<TensorImpl<T>>(shape)}
+  {
+  }
 
-    Tensor(Tensor const &other) : impl_{ other.impl_ } { }
+  Tensor(Tensor const &other) : impl_{other.impl_} {}
 
-    Tensor(TensorImpl<T> impl) 
-    : impl_{ std::make_shared<TensorImpl<T>>(impl) } { }
+  Tensor(TensorImpl<T> impl) : impl_{std::make_shared<TensorImpl<T>>(impl)} {}
 
-    Tensor operator=(Tensor const &other) 
-    { 
-        impl_ = other.impl_; 
-        return *this;
-    }
+  Tensor operator=(Tensor const &other)
+  {
+    impl_ = other.impl_;
+    return *this;
+  }
 
-    std::shared_ptr<TensorImpl<T>> impl() const { return impl_; }
+  std::shared_ptr<TensorImpl<T>> impl() const { return impl_; }
 
-    void fill(T const& val) { impl_->fill(val); }
+  void fill(T const &val) { impl_->fill(val); }
 
-    template <std::same_as<std::uint32_t>... Args>
-    T& operator[](Args... args)
+  template <std::same_as<std::uint32_t>... Args> T &operator[](Args... args)
+  {
+    return (*impl_)[args...];
+  }
+
+  void backward()
+  {
+    if (!impl_->grad_)
     {
-        return (*impl_)[args...];
+      impl_->grad_ = std::make_shared<TensorImpl<T>>(impl_->shape_);
+      impl_->grad_->fill(static_cast<T>(1));
     }
 
-    void backward() 
-    { 
-        if (!impl_->grad_)
-        {
-            impl_->grad_ = std::make_shared<TensorImpl<T>>(impl_->shape_);
-            impl_->grad_->fill(static_cast<T>(1));
-        }
+    std::vector<std::shared_ptr<TensorImpl<T>>> visited;
+    std::vector<std::shared_ptr<TensorImpl<T>>> topo;
 
-        std::vector<std::shared_ptr<TensorImpl<T>>> visited;
-        std::vector<std::shared_ptr<TensorImpl<T>>> topo;
+    topoSort(impl_, visited, topo);
 
-        topoSort(impl_, visited, topo);
-
-        for (auto it = topo.rbegin(); it != topo.rend(); ++it)
-        {
-            if((*it)->backward_) { (*it)->backward_(); }
-        }
-    }
-
-    static void topoSort(std::shared_ptr<TensorImpl<T>> v, 
-                  std::vector<std::shared_ptr<TensorImpl<T>>>& visited, 
-                  std::vector<std::shared_ptr<TensorImpl<T>>>& topo)
+    for (auto it = topo.rbegin(); it != topo.rend(); ++it)
     {
-        if (std::find(visited.begin(), visited.end(), v) != visited.end()) return;
+      if ((*it)->backward_)
+      {
+        (*it)->backward_();
+      }
+    }
+  }
 
-        visited.push_back(v);
+  static void topoSort(std::shared_ptr<TensorImpl<T>> v,
+                       std::vector<std::shared_ptr<TensorImpl<T>>> &visited,
+                       std::vector<std::shared_ptr<TensorImpl<T>>> &topo)
+  {
+    if (std::find(visited.begin(), visited.end(), v) != visited.end())
+      return;
 
-        for (auto &parent: v->parents_) { topoSort(parent, visited, topo); }
+    visited.push_back(v);
 
-        topo.push_back(v);
-    };
+    for (auto &parent : v->parents_)
+    {
+      topoSort(parent, visited, topo);
+    }
 
+    topo.push_back(v);
+  };
 
-    friend std::ostream& operator<< <>(std::ostream& out, Tensor<T> const &t);
+  friend std::ostream &operator<< <>(std::ostream &out, Tensor<T> const &t);
 
 private:
-    std::shared_ptr<TensorImpl<T>> impl_;
+  std::shared_ptr<TensorImpl<T>> impl_;
 };
 
 template <typename T>
-std::ostream& operator<<(std::ostream& out, Tensor<T> const &t)
+std::ostream &operator<<(std::ostream &out, Tensor<T> const &t)
 {
-    out << *t.impl_;
+  out << *t.impl_;
 
-    return out;
+  return out;
 }

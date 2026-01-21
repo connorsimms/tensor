@@ -104,17 +104,16 @@ public:
     return result;
   }
 
-    void operator+=(Tensor const& other)
+  void operator+=(Tensor const &other)
+  {
+    if (shape_ != other.shape_)
     {
-        if (shape_ != other.shape_)
-        {
-          throw std::invalid_argument("Tensors are of different shape");
-        }
-
-        std::transform(data_.begin(), data_.end(), other.data_.begin(),
-                       data_.begin(),
-                       [](T &a, T const &b) { return a + b; });
+      throw std::invalid_argument("Tensors are of different shape");
     }
+
+    std::transform(data_.begin(), data_.end(), other.data_.begin(),
+                   data_.begin(), [](T &a, T const &b) { return a + b; });
+  }
 
   Tensor operator*(Tensor const &other) const
   {
@@ -212,5 +211,4 @@ private:
   std::vector<std::uint32_t> shape_;
   std::vector<std::uint32_t> stride_;
   bool requires_grad_;
-    
 };
