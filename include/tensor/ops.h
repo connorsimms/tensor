@@ -2,6 +2,45 @@
 
 #include "tensor.h"
 
+// 
+// Subscribing to pytorch semantics:
+// "When iterating over the dimension sizes, 
+// starting at the trailing dimension, the dimension 
+// sizes must either be equal, one of them is 1, 
+// or one of them does not exist."
+//
+// TODO: finish this function
+//
+template <typename T>
+std::tuple<std::vector<std::uint32_t>, std::vector<std::uint32_t>, std::vector<std::uint32_t>>
+broadcast_shapes(TensorImpl<T> const& lhs, TensorImpl<T> const& rhs)
+{
+    std::vector<std::uint32_t> shape_out;
+    std::vector<std::uint32_t> lhs_stride;
+    std::vector<std::uint32_t> rhs_stride;
+
+    std::size_t dim = std::max(lhs.shape_.size(), rhs.shape_.size());
+    shape_out.resize(dim);
+    lhs_stride.resize(dim);
+    rhs_stride.resize(dim);
+
+    std::size_t i = lhs.shape_.size() - 1;
+    std::size_t j = rhs.shape_.size() - 1;
+    std::size_t k = dim - 1;
+
+    while (k >= 0)
+    {
+        if (lhs.shape_[i] == rhs.shape_[j])
+        {
+            shape_out[k] = lhs.shape_[i];
+            
+            continue;
+        }
+    }
+
+    return std::tie(shape_out, lhs_stride, rhs_stride);
+}
+
 template <typename T> Tensor<T> add(Tensor<T> const &lhs, Tensor<T> const &rhs)
 {
   Tensor<T> result(*lhs.impl() + *rhs.impl());
