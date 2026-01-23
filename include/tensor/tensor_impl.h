@@ -54,8 +54,6 @@ template <typename T> struct TensorImpl
                    });
   }
 
-  // deep copy everything except data & grad
-  // may create view version
   TensorImpl(TensorImpl const &other)
       : shape_{other.shape_}, stride_{other.stride_}, data_{other.data_},
         requires_grad_{other.requires_grad_}, parents_{other.parents_},

@@ -5,11 +5,7 @@ template <typename T> struct MSELoss
 {
   Tensor<T> operator()(Tensor<T> const &lhs, Tensor<T> const &rhs)
   {
-    // (pred - targ) ^ 2 -> sum / num elements
-    // grad i,j = 2 * (pred - targ) / num elem
-
-    Tensor<T> result(
-        1u); // this is technically 1d but currently no way to make 0d
+    Tensor<T> result(1u);
 
     auto pred = lhs.impl();
     auto targ = rhs.impl();
@@ -35,6 +31,7 @@ template <typename T> struct MSELoss
           if (!pred->grad_)
           {
             pred->grad_ = std::make_shared<TensorImpl<T>>(pred->shape_);
+            pred->grad_->fill(static_cast<T>(0));
           }
           auto pg = pred->grad_->data_->begin();
           auto pd = pred->data_->begin();
