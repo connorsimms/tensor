@@ -9,7 +9,7 @@
 // sizes must either be equal, one of them is 1, 
 // or one of them does not exist."
 //
-// TODO: finish this function
+// TODO: clean up logic - combine dne and shape == 1 cases
 //
 template <typename T>
 std::tuple<std::vector<std::uint32_t>, std::vector<std::uint32_t>, std::vector<std::uint32_t>>
@@ -24,17 +24,54 @@ broadcast_shapes(TensorImpl<T> const& lhs, TensorImpl<T> const& rhs)
     lhs_stride.resize(dim);
     rhs_stride.resize(dim);
 
-    std::size_t i = lhs.shape_.size() - 1;
-    std::size_t j = rhs.shape_.size() - 1;
-    std::size_t k = dim - 1;
+    int i = lhs.shape_.size() - 1;
+    int j = rhs.shape_.size() - 1;
+    int k = dim - 1;
 
     while (k >= 0)
     {
+        // lhs dim does not exist
+        if (i < 0 && j >= 0) 
+        { 
+            lhs_stride[k] = 0;
+            rhs_stride[k] = rhs.stride_[j];
+            shape_out[k--] = rhs.shape_[j--]; 
+            continue;
+        }
+
+        // rhs dim does not exist
+        if (i >= 0 && j < 0) 
+        { 
+            lhs_stride[k] = lhs.stride_[i];
+            rhs_stride[k] = 0;
+            shape_out[k--] = lhs.shape_[i--]; 
+            continue;
+        }
+
+        if (lhs.shape_[i] == 1)
+        {
+            lhs_stride[k] = 0;
+            shape_out[k--] = std::max(lhs.shape_[i--], rhs.shape_[j--]);
+            continue;
+        }
+
+        if (rhs.shape_[j] == 1)
+        {
+            rhs_stride[k] = 0;
+            shape_out[k--] = std::max(lhs.shape_[i--], rhs.shape_[j--]);
+            continue;
+        }
+
         if (lhs.shape_[i] == rhs.shape_[j])
         {
-            shape_out[k] = lhs.shape_[i];
-            
+            lhs_stride[k] = lhs.stride_[i];
+            rhs_stride[k] = rhs.stride_[j];
+            shape_out[k--] = lhs.shape_[i--]; --j;
             continue;
+        }
+        else
+        {
+            throw std::invalid_argument("Broadcast not compatible");
         }
     }
 
