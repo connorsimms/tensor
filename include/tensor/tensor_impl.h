@@ -63,16 +63,17 @@ template <typename T> struct TensorImpl
 
   void fill(T const &val) { std::fill(data_->begin(), data_->end(), val); }
 
-// 
-// Subscribing to pytorch semantics:
-// "When iterating over the dimension sizes, 
-// starting at the trailing dimension, the dimension 
-// sizes must either be equal, one of them is 1, 
-// or one of them does not exist."
-//
-static std::tuple<std::vector<std::uint32_t>, std::vector<std::uint32_t>, std::vector<std::uint32_t>>
-broadcast_shapes(TensorImpl const& lhs, TensorImpl const& rhs)
-{
+  //
+  // Subscribing to pytorch semantics:
+  // "When iterating over the dimension sizes,
+  // starting at the trailing dimension, the dimension
+  // sizes must either be equal, one of them is 1,
+  // or one of them does not exist."
+  //
+  static std::tuple<std::vector<std::uint32_t>, std::vector<std::uint32_t>,
+                    std::vector<std::uint32_t>>
+  broadcast_shapes(TensorImpl const &lhs, TensorImpl const &rhs)
+  {
     std::vector<std::uint32_t> shape_out;
     std::vector<std::uint32_t> lhs_stride;
     std::vector<std::uint32_t> rhs_stride;
@@ -88,39 +89,41 @@ broadcast_shapes(TensorImpl const& lhs, TensorImpl const& rhs)
 
     while (k >= 0)
     {
-        std::uint32_t dim_lhs = (i >= 0) ? lhs.shape_[i] : 1;
-        std::uint32_t dim_rhs = (j >= 0) ? rhs.shape_[j] : 1;
+      std::uint32_t dim_lhs = (i >= 0) ? lhs.shape_[i] : 1;
+      std::uint32_t dim_rhs = (j >= 0) ? rhs.shape_[j] : 1;
 
-        if (dim_lhs != dim_rhs && dim_lhs != 1 && dim_rhs != 1)
-        {
-            throw std::invalid_argument("Broadcast not compatible");
-        }
+      if (dim_lhs != dim_rhs && dim_lhs != 1 && dim_rhs != 1)
+      {
+        throw std::invalid_argument("Broadcast not compatible");
+      }
 
-        shape_out[k] = std::max(dim_lhs, dim_rhs);
+      shape_out[k] = std::max(dim_lhs, dim_rhs);
 
-        if (i >= 0)
-        {
-            lhs_stride[k] = (dim_lhs == 1 && shape_out[k] > 1) ? 0 : lhs.stride_[i];
-        }
-        else
-        {
-            lhs_stride[k] = 0;
-        }
+      if (i >= 0)
+      {
+        lhs_stride[k] = (dim_lhs == 1 && shape_out[k] > 1) ? 0 : lhs.stride_[i];
+      }
+      else
+      {
+        lhs_stride[k] = 0;
+      }
 
-        if (j >= 0)
-        {
-            rhs_stride[k] = (dim_rhs == 1 && shape_out[k] > 1) ? 0 : rhs.stride_[j];
-        }
-        else
-        {
-            rhs_stride[k] = 0;
-        }
+      if (j >= 0)
+      {
+        rhs_stride[k] = (dim_rhs == 1 && shape_out[k] > 1) ? 0 : rhs.stride_[j];
+      }
+      else
+      {
+        rhs_stride[k] = 0;
+      }
 
-        i--; j--; k--;
+      i--;
+      j--;
+      k--;
     }
 
     return {shape_out, lhs_stride, rhs_stride};
-}
+  }
 
   TensorImpl operator-() const
   {
@@ -134,31 +137,35 @@ broadcast_shapes(TensorImpl const& lhs, TensorImpl const& rhs)
 
   TensorImpl operator+(TensorImpl const &other) const
   {
-    auto [shape_out, lhs_stride, rhs_stride] = broadcast_shapes(*this, other); 
+    auto [shape_out, lhs_stride, rhs_stride] = broadcast_shapes(*this, other);
 
     TensorImpl result = TensorImpl(shape_out);
 
-    const auto& lhs_data = *this->data_;
-    const auto& rhs_data = *other.data_;
+    const auto &lhs_data = *this->data_;
+    const auto &rhs_data = *other.data_;
 
     std::vector<std::uint32_t> coord(shape_out.size());
 
     for (std::size_t i{}; i < result.data_->size(); ++i)
     {
-        auto lhs_idx = std::inner_product(coord.begin(), coord.end(), lhs_stride.begin(), 0);
-        auto rhs_idx = std::inner_product(coord.begin(), coord.end(), rhs_stride.begin(), 0);
-       
-        (*result.data_)[i] = lhs_data[lhs_idx] + rhs_data[rhs_idx];
+      auto lhs_idx =
+          std::inner_product(coord.begin(), coord.end(), lhs_stride.begin(), 0);
+      auto rhs_idx =
+          std::inner_product(coord.begin(), coord.end(), rhs_stride.begin(), 0);
 
-        auto d = result.shape_.rbegin();
-        auto c = coord.rbegin();
+      (*result.data_)[i] = lhs_data[lhs_idx] + rhs_data[rhs_idx];
 
-        while (d != result.shape_.rend() && c != coord.rend())
+      for (auto k = shape_out.size() - 1; k >= 0; --k)
+      {
+        if (++coord[k] >= shape_out[k])
         {
-            if (++(*c) >= *d) { *c = 0; }
-            else { break; }
-            ++d; ++c;
+          coord[k] = 0;
         }
+        else
+        {
+          break;
+        }
+      }
     }
 
     return result;
@@ -166,16 +173,36 @@ broadcast_shapes(TensorImpl const& lhs, TensorImpl const& rhs)
 
   TensorImpl operator-(TensorImpl const &other) const
   {
-    if (this->shape_ != other.shape_)
+    auto [shape_out, lhs_stride, rhs_stride] = broadcast_shapes(*this, other);
+
+    TensorImpl result = TensorImpl(shape_out);
+
+    const auto &lhs_data = *this->data_;
+    const auto &rhs_data = *other.data_;
+
+    std::vector<std::uint32_t> coord(shape_out.size());
+
+    for (std::size_t i{}; i < result.data_->size(); ++i)
     {
-      throw std::invalid_argument("Tensors are of different shape");
+      auto lhs_idx =
+          std::inner_product(coord.begin(), coord.end(), lhs_stride.begin(), 0);
+      auto rhs_idx =
+          std::inner_product(coord.begin(), coord.end(), rhs_stride.begin(), 0);
+
+      (*result.data_)[i] = lhs_data[lhs_idx] - rhs_data[rhs_idx];
+
+      for (auto k = shape_out.size() - 1; k >= 0; --k)
+      {
+        if (++coord[k] >= shape_out[k])
+        {
+          coord[k] = 0;
+        }
+        else
+        {
+          break;
+        }
+      }
     }
-
-    TensorImpl result = TensorImpl(this->shape_);
-
-    std::transform(this->data_->begin(), this->data_->end(),
-                   other.data_->begin(), result.data_->begin(),
-                   [](T const &a, T const &b) { return a - b; });
 
     return result;
   }
@@ -193,14 +220,37 @@ broadcast_shapes(TensorImpl const& lhs, TensorImpl const& rhs)
 
   void operator+=(TensorImpl const &other)
   {
-    if (this->shape_ != other.shape_)
+    auto [shape_out, lhs_stride, rhs_stride] = broadcast_shapes(*this, other);
+
+    if (this->shape_ != shape_out)
     {
-      throw std::invalid_argument("TensorImpl are of different shape");
+      throw std::invalid_argument("Broadcast not compatible");
     }
 
-    std::transform(this->data_->begin(), this->data_->end(),
-                   other.data_->begin(), this->data_->begin(),
-                   [](T const &a, T const &b) { return a + b; });
+    auto &lhs_data = *this->data_;
+    const auto &rhs_data = *other.data_;
+
+    std::vector<std::uint32_t> coord(shape_out.size());
+
+    for (std::size_t i{}; i < lhs_data.size(); ++i)
+    {
+      auto rhs_idx =
+          std::inner_product(coord.begin(), coord.end(), rhs_stride.begin(), 0);
+
+      lhs_data[i] += rhs_data[rhs_idx];
+
+      for (auto k = shape_out.size() - 1; k >= 0; --k)
+      {
+        if (++coord[k] >= shape_out[k])
+        {
+          coord[k] = 0;
+        }
+        else
+        {
+          break;
+        }
+      }
+    }
   }
 
   void operator-=(TensorImpl const &other)
