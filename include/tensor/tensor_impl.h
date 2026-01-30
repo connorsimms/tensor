@@ -255,14 +255,37 @@ template <typename T> struct TensorImpl
 
   void operator-=(TensorImpl const &other)
   {
-    if (this->shape_ != other.shape_)
+    auto [shape_out, lhs_stride, rhs_stride] = broadcast_shapes(*this, other);
+
+    if (this->shape_ != shape_out)
     {
-      throw std::invalid_argument("TensorImpl are of different shape");
+      throw std::invalid_argument("Broadcast not compatible");
     }
 
-    std::transform(this->data_->begin(), this->data_->end(),
-                   other.data_->begin(), this->data_->begin(),
-                   [](T const &a, T const &b) { return a - b; });
+    auto &lhs_data = *this->data_;
+    const auto &rhs_data = *other.data_;
+
+    std::vector<std::uint32_t> coord(shape_out.size());
+
+    for (std::size_t i{}; i < lhs_data.size(); ++i)
+    {
+      auto rhs_idx =
+          std::inner_product(coord.begin(), coord.end(), rhs_stride.begin(), 0);
+
+      lhs_data[i] -= rhs_data[rhs_idx];
+
+      for (auto k = shape_out.size() - 1; k >= 0; --k)
+      {
+        if (++coord[k] >= shape_out[k])
+        {
+          coord[k] = 0;
+        }
+        else
+        {
+          break;
+        }
+      }
+    }
   }
 
   void operator*=(T const &val) const
