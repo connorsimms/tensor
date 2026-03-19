@@ -1,8 +1,9 @@
 #pragma once
 
-#include "tensor_impl.h"
+#include "tensor_impl.hpp"
 
 template <typename T> class Tensor;
+
 template <typename T>
 std::ostream &operator<<(std::ostream &out, Tensor<T> const &t);
 

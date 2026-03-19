@@ -1,6 +1,6 @@
 #pragma once
 
-#include "tensor.h"
+#include "tensor.hpp"
 
 template <typename T> class SGD
 {
